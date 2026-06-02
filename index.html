@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Starlink Live Data Scraper</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;800&family=Space+Mono&display=swap" rel="stylesheet"/>
+    <style>
+        :root { --bg: #04070f; --accent: #00c8ff; --text: #c8deff; --border: #1a2a4a; --success: #00e5a0; --error: #ff4a6a; }
+        body { background: var(--bg); color: var(--text); font-family: 'Space Mono', monospace; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: #080e1c; padding: 30px; border-radius: 20px; border: 1px solid var(--border); }
+        h1 { font-family: 'Orbitron'; text-align: center; letter-spacing: 5px; color: var(--accent); }
+        .live-card { background: rgba(0,200,255,0.05); border: 1px solid var(--accent); padding: 30px; text-align: center; margin: 20px 0; border-radius: 15px; }
+        .total-val { font-family: 'Orbitron'; font-size: 50px; color: var(--accent); font-weight: 800; }
+        button { width: 100%; padding: 15px; background: transparent; border: 1px solid var(--accent); color: var(--accent); font-family: 'Orbitron'; font-weight: bold; cursor: pointer; border-radius: 8px; transition: .3s; }
+        button:hover:not(:disabled) { background: var(--accent); color: black; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .log { background: #000; padding: 10px; font-size: 11px; color: #4a6a9a; height: 130px; overflow-y: auto; margin: 15px 0; border-radius: 5px; border: 1px solid #1a2a4a; }
+        .log div { padding: 1px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+        th { color: #4a6a9a; font-family: 'Orbitron'; font-size: 11px; }
+        .btn-dl { display: block; margin-top: 15px; color: var(--success); text-align: center; text-decoration: none; border: 1px solid var(--success); padding: 10px; border-radius: 5px; font-size: 14px; }
+        .btn-dl:hover { background: var(--success); color: black; }
+        .row-count { color: #4a6a9a; font-size: 11px; margin-top: 10px; text-align: right; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛰️ STARLINK DATA PORTAL</h1>
+        <div class="live-card">
+            <div style="font-size:10px; letter-spacing:2px; margin-bottom:5px;">REAL-TIME SYNCED TOTAL</div>
+            <div id="liveTotal" class="total-val">-- GB</div>
+        </div>
+        <div class="panel">
+            <div id="log" class="log">Ready. Click START to launch Chrome and begin.</div>
+            <button id="scrapeBtn" onclick="startScrape()">▶ START ACCURATE SYNC</button>
+            <div id="results" style="display:none">
+                <div id="rowCount" class="row-count"></div>
+                <table>
+                    <thead><tr><th>Date</th><th>Data Used (GB)</th></tr></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+                <a href="/api/download-csv" class="btn-dl">⬇ DOWNLOAD CSV REPORT</a>
+            </div>
+        </div>
+    </div>
+    <script>
+        function addLog(msg, color) {
+            const log = document.getElementById('log');
+            const div = document.createElement('div');
+            div.style.color = color || '#4a6a9a';
+            div.textContent = msg;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function startScrape() {
+            const btn = document.getElementById('scrapeBtn');
+            document.getElementById('log').innerHTML = '';
+            document.getElementById('results').style.display = 'none';
+            btn.disabled = true;
+            btn.innerText = "SCRAPING... LOG IN TO CHROME WINDOW";
+
+            addLog('[SYSTEM] Launching Chrome...');
+            addLog('[INFO] Log in manually, then wait — this takes 2–3 minutes.');
+
+            try {
+                const res = await fetch('/api/scrape', { method: 'POST' });
+                const result = await res.json();
+
+                if (result.success) {
+                    if (result.data.length === 0) {
+                        addLog('[WARNING] Scrape succeeded but no data rows were collected.', '#ffaa00');
+                        addLog('[TIP] Check your terminal for tab-level errors.', '#ffaa00');
+                    } else {
+                        document.getElementById('liveTotal').innerText = result.total_usage;
+                        document.getElementById('results').style.display = 'block';
+                        document.getElementById('rowCount').innerText = `${result.data.length} days captured`;
+
+                        const tbody = document.getElementById('tableBody');
+                        tbody.innerHTML = '';
+                        result.data.forEach(row => {
+                            tbody.innerHTML += `<tr>
+                                <td>${row.Date}</td>
+                                <td style="color:#00c8ff; font-weight:bold">${parseFloat(row.Usage_GB).toFixed(2)} GB</td>
+                            </tr>`;
+                        });
+                        addLog(`[SUCCESS] ${result.data.length} rows captured. CSV ready.`, '#00e5a0');
+                    }
+                } else {
+                    addLog(`[ERROR] ${result.error}`, '#ff4a6a');
+                    addLog('[TIP] Check your VS Code terminal for the full traceback.', '#ffaa00');
+                }
+            } catch(e) {
+                addLog('[ERROR] Could not reach Flask server. Is app.py running?', '#ff4a6a');
+            }
+
+            btn.disabled = false;
+            btn.innerText = "▶ RUN NEW EXTRACTION";
+        }
+    </script>
+</body>
+</html>
